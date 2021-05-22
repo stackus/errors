@@ -4,7 +4,7 @@
 
 # errors
 
-Builds on Go 1.13 errors adding HTTP and GRPC code to your errors.
+Builds on Go 1.13 errors by adding HTTP statuses and GRPC codes to them.
 
 ## Installation
 
@@ -16,8 +16,9 @@ Go 1.13
 
 ## Adding HTTP status and GRPC codes to your errors
 
-The errors.Wrap function is used to embed an errors.Error or to wrap other errors. When used with an errors.Error the
-desired message is not altered. Wrapping other errors will prefix the message before the wrapped errors message.
+The `errors.Wrap(error, string) error` function is used to embed an `errors.Error` or to wrap other errors. When used
+with an `errors.Error` the desired message is not altered. Wrapping other errors will prefix the message before the
+wrapped error message.
 
     err := errors.Wrap(errors.ErrNotFound, "found nothing")
     fmt.Println(err) // Outputs: "found nothing"
@@ -26,7 +27,7 @@ desired message is not altered. Wrapping other errors will prefix the message be
 
 ## HTTP Statuses
 
-The wrapped errors.Error can be checked with `errors.As()` and the `errors.HTTPCoder` interface to locate the HTTP
+The wrapped `errors.Error` can be checked with `errors.As()` and the `errors.HTTPCoder` interface to locate the HTTP
 status.
 
     err := errors.Wrap(errors.ErrNotFound, "found nothing")
@@ -46,9 +47,9 @@ A similar method can be used to get the GRPC codes with the `errors.GRPCCoder` i
 
 ## Transmitting errors with GRPC
 
-The methods `SendGRPCError(error) error` and `ReceiveGRPCError(error) error` provide a way to convert a status.Status and
-its error into an errors.Error and vice versa. You can use these in your server and client handlers directly, or they
-can be used with GRPC interceptors.
+The methods `SendGRPCError(error) error` and `ReceiveGRPCError(error) error` provide a way to convert a status.Status
+and its error into an errors.Error and vice versa. You can use these in your server and client handlers directly, or
+they can be used with GRPC interceptors.
 
 Server Example:
 
