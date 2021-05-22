@@ -25,6 +25,28 @@ wrapped error message.
     err = errors.Wrap(err, "a prefixed message")
     fmt.Println(err) // Outputs: "a prefixed message: found nothing"
 
+## Displaying the embedded Error message
+
+To display the embedded message you can use `errors.Message(error) string`. If the error is or has wrapped
+an `errors.Error` then its type will be prefixed to the message.
+
+    err := errors.Wrap(errors.ErrNotFound, "still nothing")
+    fmt.Println(errors.Message(err)) // Outputs: "NOT_FOUND: still nothing"
+
+No matter how many errors have been wrapped, the embedded `errors.Error` will be shown as the first prefix.
+
+## Is(err, target) and As(err, target)
+
+You can check for an embedded `error.Error` with `Is(err, target) bool`.
+
+    err := errors.Wrap(errors.Wrap(errors.ErrNotFound, "nothing found"), "a prefix")
+    if errors.Is(err, errors.ErrNotFound) {
+        fmt.Println(errors.Message(err)) // Outputs: "NOT_FOUND: a prefix: nothing found"
+    }
+
+The methods `Is()`, `As()`, and `Unwrap()` from the standard `errors` package have all been made available in this
+package as proxies for convenience.
+
 ## HTTP Statuses
 
 The wrapped `errors.Error` can be checked with `errors.As()` and the `errors.HTTPCoder` interface to locate the HTTP
@@ -44,6 +66,7 @@ A similar method can be used to get the GRPC codes with the `errors.GRPCCoder` i
     var coder errors.GRPCCoder
     if errors.As(err, &coder) {
         fmt.Println(coder.GRPCCode()) // Outputs: 5
+    }
 
 ## Transmitting errors with GRPC
 
@@ -59,7 +82,7 @@ Server Example:
     	}
     }
 
-    server := grpc.NewServer(grpc.ChainUnaryInterceptor(serverErrorUnaryInterceptor()))
+    server := grpc.NewServer(grpc.ChainUnaryInterceptor(serverErrorUnaryInterceptor()), ...others)
 
 Client Example:
 
@@ -69,7 +92,7 @@ Client Example:
     	}
     }
 
-    cc, err := grpc.Dial(uri, grpc.WithChainUnaryInterceptor(clientErrorUnaryInterceptor()))
+    cc, err := grpc.Dial(uri, grpc.WithChainUnaryInterceptor(clientErrorUnaryInterceptor()), ...others)
 
 There is no requirement that both the server and client use this library to benefit from coded errors.
 
