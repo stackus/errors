@@ -68,6 +68,10 @@ A similar method can be used to get the GRPC codes with the `errors.GRPCCoder` i
         fmt.Println(coder.GRPCCode()) // Outputs: 5
     }
 
+## Error types
+
+The list of embeddable `errors.Error` types can be found [here](https://github.com/stackus/errors/blob/master/types.go).
+
 ## Transmitting errors with GRPC
 
 The methods `SendGRPCError(error) error` and `ReceiveGRPCError(error) error` provide a way to convert a status.Status
