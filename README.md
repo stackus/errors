@@ -47,7 +47,7 @@ A similar method can be used to get the GRPC codes with the `errors.GRPCCoder` i
 ## Transmitting errors with GRPC
 
 The methods `SendGRPCError(error) error` and `ReceiveGRPCError(error) error` provide a way to convert a status.Status and
-it's error into an errors.Error and vice versa. You can use these in your server and client handlers directly, or they
+its error into an errors.Error and vice versa. You can use these in your server and client handlers directly, or they
 can be used with GRPC interceptors.
 
 Server Example:
