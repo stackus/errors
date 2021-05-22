@@ -1,5 +1,5 @@
 ![](https://github.com/stackus/errors/workflows/CI/badge.svg)
-[![Go Report Card](https://goreportcard.com/badge/github.com/stackus/erros)](https://goreportcard.com/report/github.com/stackus/errors)
+[![Go Report Card](https://goreportcard.com/badge/github.com/stackus/errors)](https://goreportcard.com/report/github.com/stackus/errors)
 [![](https://godoc.org/github.com/stackus/errors?status.svg)](https://pkg.go.dev/github.com/stackus/errors)
 
 # errors
