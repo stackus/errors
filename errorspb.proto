@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option go_package = "github.com/stackus/errors";
+
+package errors;
+
+message ErrorType {
+  string TypeCode = 1;
+  int64 HTTPCode = 2;
+  int64 GRPCCode = 3;
+}

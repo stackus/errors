@@ -3,8 +3,12 @@ package errors
 import (
 	stderrors "errors"
 	"fmt"
-	"io"
 )
+
+// TypeCoder interface to extract an errors embeddable type as a string
+type TypeCoder interface {
+	TypeCode() string
+}
 
 // Error base error
 type Error string
@@ -14,19 +18,25 @@ func (e Error) Error() string {
 	return string(e)
 }
 
-// Format implements fmt.Formatter
-//
-// Error is embedded without modification to the error message
-// with Wrap() and Wrapf() or manually with fmt.Errorf() using "%-w".
-func (e Error) Format(s fmt.State, v rune) {
-	switch v {
-	case 's':
-		_, _ = io.WriteString(s, string(e))
-	case 'v':
-		if !s.Flag('-') {
-			_, _ = io.WriteString(s, string(e))
-		}
-	}
+func (e Error) TypeCode() string {
+	return string(e)
+}
+
+type embeddedError struct {
+	e   error
+	msg string
+}
+
+func (e embeddedError) Error() string {
+	return e.msg
+}
+
+func (e embeddedError) Is(target error) bool {
+	return stderrors.Is(e.e, target)
+}
+
+func (e embeddedError) As(target interface{}) bool {
+	return stderrors.As(e.e, target)
 }
 
 // Wrap returns an error with msg wrapped with the supplied error
@@ -35,8 +45,8 @@ func Wrap(err error, msg string) error {
 	if err == nil {
 		return nil
 	}
-	if e, ok := err.(Error); ok {
-		return embed(e, msg)
+	if _, ok := err.(TypeCoder); ok {
+		return embeddedError{err, msg}
 	}
 	return fmt.Errorf("%s: %w", msg, err)
 }
@@ -47,36 +57,23 @@ func Wrapf(err error, format string, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
-	if e, ok := err.(Error); ok {
-		return embedf(e, format, args...)
+	if _, ok := err.(TypeCoder); ok {
+		return embeddedError{err, fmt.Sprintf(format, args...)}
 	}
 	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
 }
 
-// Message displays the string value for Error prefixed to the existing error message
-//
-// Prefixed as "Error: message"
-//
-// If err is not an Error or it hasn't wrapped one then there will no modifications made
-// to the message.
-func Message(err error) string {
-	var e Error
-	if stderrors.As(err, &e) {
-		return fmt.Sprintf("%s: %s", e.Error(), err.Error())
+// TypeCode returns the embedded type for the given error or blank when nil or UNKNOWN otherwise
+func TypeCode(err error) string {
+	if err == nil {
+		return ""
 	}
-	return err.Error()
-}
 
-// embed returns an error with msg wrapped with the supplied Error without suffixing it
-// If err is nil then embed returns nil
-func embed(err Error, msg string) error {
-	return fmt.Errorf("%-w%s", err, msg)
-}
-
-// embedf returns an error with a formatted msg wrapped with the supplied Error without suffixing it
-// If err is nil then embedf returns nil
-func embedf(err Error, format string, args ...interface{}) error {
-	return fmt.Errorf("%-w%s", err, fmt.Sprintf(format, args...))
+	var e TypeCoder
+	if stderrors.As(err, &e) {
+		return e.TypeCode()
+	}
+	return "UNKNOWN"
 }
 
 // Go 1.13 convenience

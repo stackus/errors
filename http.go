@@ -1,6 +1,9 @@
 package errors
 
-import "net/http"
+import (
+	stderrors "errors"
+	"net/http"
+)
 
 type HTTPCoder interface {
 	HTTPCode() int
@@ -8,12 +11,13 @@ type HTTPCoder interface {
 
 func (e Error) HTTPCode() int {
 	switch e {
+	// GRPC Errors
 	case ErrOK:
 		return http.StatusOK
 	case ErrCanceled:
 		return http.StatusRequestTimeout
 	case ErrUnknown:
-		return http.StatusInternalServerError
+		return http.StatusNotExtended
 	case ErrInvalidArgument:
 		return http.StatusBadRequest
 	case ErrDeadlineExceeded:
@@ -42,21 +46,52 @@ func (e Error) HTTPCode() int {
 		return http.StatusInternalServerError
 	case ErrUnauthenticated:
 		return http.StatusUnauthorized
+
+	// HTTP Errors
 	case ErrBadRequest:
 		return http.StatusBadRequest
-	case ErrConflict:
-		return http.StatusConflict
 	case ErrUnauthorized:
 		return http.StatusUnauthorized
 	case ErrForbidden:
 		return http.StatusForbidden
+	case ErrMethodNotAllowed:
+		return http.StatusMethodNotAllowed
+	case ErrRequestTimeout:
+		return http.StatusRequestTimeout
+	case ErrConflict:
+		return http.StatusConflict
+	case ErrImATeapot:
+		return 418 // teapot support
 	case ErrUnprocessableEntity:
 		return http.StatusUnprocessableEntity
-	case ErrServer:
+	case ErrTooManyRequests:
+		return http.StatusTooManyRequests
+	case ErrUnavailableForLegalReasons:
+		return http.StatusUnavailableForLegalReasons
+	case ErrInternalServerError:
 		return http.StatusInternalServerError
-	case ErrClient:
-		return http.StatusBadRequest
+	case ErrNotImplemented:
+		return http.StatusNotImplemented
+	case ErrBadGateway:
+		return http.StatusBadGateway
+	case ErrServiceUnavailable:
+		return http.StatusServiceUnavailable
+	case ErrGatewayTimeout:
+		return http.StatusGatewayTimeout
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+// HTTPCode returns the HTTP status for the given error or http.StatusOK when nil or http.StatusNotExtended otherwise
+func HTTPCode(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+
+	var e HTTPCoder
+	if stderrors.As(err, &e) {
+		return e.HTTPCode()
+	}
+	return http.StatusNotExtended
 }

@@ -1,63 +1,58 @@
 package errors
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 )
 
-func TestError_HTTPCode(t *testing.T) {
-	assert.Equal(t, ErrOK.HTTPCode(), http.StatusOK)
-	assert.Equal(t, ErrCanceled.HTTPCode(), http.StatusRequestTimeout)
-	assert.Equal(t, ErrUnknown.HTTPCode(), http.StatusInternalServerError)
-	assert.Equal(t, ErrInvalidArgument.HTTPCode(), http.StatusBadRequest)
-	assert.Equal(t, ErrDeadlineExceeded.HTTPCode(), http.StatusGatewayTimeout)
-	assert.Equal(t, ErrNotFound.HTTPCode(), http.StatusNotFound)
-	assert.Equal(t, ErrAlreadyExists.HTTPCode(), http.StatusConflict)
-	assert.Equal(t, ErrPermissionDenied.HTTPCode(), http.StatusForbidden)
-	assert.Equal(t, ErrResourceExhausted.HTTPCode(), http.StatusTooManyRequests)
-	assert.Equal(t, ErrFailedPrecondition.HTTPCode(), http.StatusBadRequest)
-	assert.Equal(t, ErrAborted.HTTPCode(), http.StatusConflict)
-	assert.Equal(t, ErrOutOfRange.HTTPCode(), http.StatusUnprocessableEntity)
-	assert.Equal(t, ErrUnimplemented.HTTPCode(), http.StatusNotImplemented)
-	assert.Equal(t, ErrInternal.HTTPCode(), http.StatusInternalServerError)
-	assert.Equal(t, ErrUnavailable.HTTPCode(), http.StatusServiceUnavailable)
-	assert.Equal(t, ErrDataLoss.HTTPCode(), http.StatusInternalServerError)
-	assert.Equal(t, ErrUnauthenticated.HTTPCode(), http.StatusUnauthorized)
-	assert.Equal(t, ErrBadRequest.HTTPCode(), http.StatusBadRequest)
-	assert.Equal(t, ErrConflict.HTTPCode(), http.StatusConflict)
-	assert.Equal(t, ErrUnauthorized.HTTPCode(), http.StatusUnauthorized)
-	assert.Equal(t, ErrForbidden.HTTPCode(), http.StatusForbidden)
-	assert.Equal(t, ErrUnprocessableEntity.HTTPCode(), http.StatusUnprocessableEntity)
-	assert.Equal(t, ErrServer.HTTPCode(), http.StatusInternalServerError)
-	assert.Equal(t, ErrClient.HTTPCode(), http.StatusBadRequest)
-}
-
-func TestError_GRPCCode(t *testing.T) {
-	assert.Equal(t, ErrOK.GRPCCode(), codes.OK)
-	assert.Equal(t, ErrCanceled.GRPCCode(), codes.Canceled)
-	assert.Equal(t, ErrUnknown.GRPCCode(), codes.Unknown)
-	assert.Equal(t, ErrInvalidArgument.GRPCCode(), codes.InvalidArgument)
-	assert.Equal(t, ErrDeadlineExceeded.GRPCCode(), codes.DeadlineExceeded)
-	assert.Equal(t, ErrNotFound.GRPCCode(), codes.NotFound)
-	assert.Equal(t, ErrAlreadyExists.GRPCCode(), codes.AlreadyExists)
-	assert.Equal(t, ErrPermissionDenied.GRPCCode(), codes.PermissionDenied)
-	assert.Equal(t, ErrResourceExhausted.GRPCCode(), codes.ResourceExhausted)
-	assert.Equal(t, ErrFailedPrecondition.GRPCCode(), codes.FailedPrecondition)
-	assert.Equal(t, ErrAborted.GRPCCode(), codes.Aborted)
-	assert.Equal(t, ErrOutOfRange.GRPCCode(), codes.OutOfRange)
-	assert.Equal(t, ErrUnimplemented.GRPCCode(), codes.Unimplemented)
-	assert.Equal(t, ErrInternal.GRPCCode(), codes.Internal)
-	assert.Equal(t, ErrUnavailable.GRPCCode(), codes.Unavailable)
-	assert.Equal(t, ErrDataLoss.GRPCCode(), codes.DataLoss)
-	assert.Equal(t, ErrUnauthenticated.GRPCCode(), codes.Unauthenticated)
-	assert.Equal(t, ErrBadRequest.GRPCCode(), codes.InvalidArgument)
-	assert.Equal(t, ErrConflict.GRPCCode(), codes.AlreadyExists)
-	assert.Equal(t, ErrUnauthorized.GRPCCode(), codes.Unauthenticated)
-	assert.Equal(t, ErrForbidden.GRPCCode(), codes.PermissionDenied)
-	assert.Equal(t, ErrUnprocessableEntity.GRPCCode(), codes.InvalidArgument)
-	assert.Equal(t, ErrServer.GRPCCode(), codes.Internal)
-	assert.Equal(t, ErrClient.GRPCCode(), codes.InvalidArgument)
+func TestError_Values(t *testing.T) {
+	errors := []struct {
+		e  Error
+		t  string
+		hc int
+		gc codes.Code
+	}{
+		{ErrOK, "OK", 200, codes.OK},
+		{ErrCanceled, "CANCELED", 408, codes.Canceled},
+		{ErrUnknown, "UNKNOWN", 510, codes.Unknown},
+		{ErrInvalidArgument, "INVALID_ARGUMENT", 400, codes.InvalidArgument},
+		{ErrDeadlineExceeded, "DEADLINE_EXCEEDED", 504, codes.DeadlineExceeded},
+		{ErrNotFound, "NOT_FOUND", 404, codes.NotFound},
+		{ErrAlreadyExists, "ALREADY_EXISTS", 409, codes.AlreadyExists},
+		{ErrPermissionDenied, "PERMISSION_DENIED", 403, codes.PermissionDenied},
+		{ErrResourceExhausted, "RESOURCE_EXHAUSTED", 429, codes.ResourceExhausted},
+		{ErrFailedPrecondition, "FAILED_PRECONDITION", 400, codes.FailedPrecondition},
+		{ErrAborted, "ABORTED", 409, codes.Aborted},
+		{ErrOutOfRange, "OUT_OF_RANGE", 422, codes.OutOfRange},
+		{ErrUnimplemented, "UNIMPLEMENTED", 501, codes.Unimplemented},
+		{ErrInternal, "INTERNAL", 500, codes.Internal},
+		{ErrUnavailable, "UNAVAILABLE", 503, codes.Unavailable},
+		{ErrDataLoss, "DATA_LOSS", 500, codes.DataLoss},
+		{ErrUnauthenticated, "UNAUTHENTICATED", 401, codes.Unauthenticated},
+		{ErrBadRequest, "BAD_REQUEST", 400, codes.InvalidArgument},
+		{ErrUnauthorized, "UNAUTHORIZED", 401, codes.Unauthenticated},
+		{ErrForbidden, "FORBIDDEN", 403, codes.PermissionDenied},
+		{ErrMethodNotAllowed, "METHOD_NOT_ALLOWED", 405, codes.Unimplemented},
+		{ErrRequestTimeout, "REQUEST_TIMEOUT", 408, codes.DeadlineExceeded},
+		{ErrConflict, "CONFLICT", 409, codes.AlreadyExists},
+		{ErrImATeapot, "IM_A_TEAPOT", 418, codes.Unknown},
+		{ErrUnprocessableEntity, "UNPROCESSABLE_ENTITY", 422, codes.InvalidArgument},
+		{ErrTooManyRequests, "TOO_MANY_REQUESTS", 429, codes.ResourceExhausted},
+		{ErrUnavailableForLegalReasons, "UNAVAILABLE_FOR_LEGAL_REASONS", 451, codes.Unavailable},
+		{ErrInternalServerError, "INTERNAL_SERVER_ERROR", 500, codes.Internal},
+		{ErrNotImplemented, "NOT_IMPLEMENTED", 501, codes.Unimplemented},
+		{ErrBadGateway, "BAD_GATEWAY", 502, codes.Aborted},
+		{ErrServiceUnavailable, "SERVICE_UNAVAILABLE", 503, codes.Unavailable},
+		{ErrGatewayTimeout, "GATEWAY_TIMEOUT", 504, codes.DeadlineExceeded},
+	}
+	for _, e := range errors {
+		t.Run(e.t, func(t *testing.T) {
+			assert.Equal(t, e.e.TypeCode(), e.t)
+			assert.Equal(t, e.e.Error(), e.t)
+			assert.Equal(t, e.e.HTTPCode(), e.hc)
+			assert.Equal(t, e.e.GRPCCode(), e.gc)
+		})
+	}
 }

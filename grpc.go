@@ -7,17 +7,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type grpcError struct {
-	e error
-	s *status.Status
-}
-
 type GRPCCoder interface {
 	GRPCCode() codes.Code
 }
 
 func (e Error) GRPCCode() codes.Code {
 	switch e {
+	// GRPC Errors
 	case ErrOK:
 		return codes.OK
 	case ErrCanceled:
@@ -52,39 +48,95 @@ func (e Error) GRPCCode() codes.Code {
 		return codes.DataLoss
 	case ErrUnauthenticated:
 		return codes.Unauthenticated
+
+	// HTTP Errors
 	case ErrBadRequest:
 		return codes.InvalidArgument
-	case ErrConflict:
-		return codes.AlreadyExists
 	case ErrUnauthorized:
 		return codes.Unauthenticated
 	case ErrForbidden:
 		return codes.PermissionDenied
+	case ErrMethodNotAllowed:
+		return codes.Unimplemented
+	case ErrRequestTimeout:
+		return codes.DeadlineExceeded
+	case ErrConflict:
+		return codes.AlreadyExists
+	case ErrImATeapot:
+		return codes.Unknown
 	case ErrUnprocessableEntity:
 		return codes.InvalidArgument
-	case ErrServer:
+	case ErrTooManyRequests:
+		return codes.ResourceExhausted
+	case ErrUnavailableForLegalReasons:
+		return codes.Unavailable
+	case ErrInternalServerError:
 		return codes.Internal
-	case ErrClient:
-		return codes.InvalidArgument
+	case ErrNotImplemented:
+		return codes.Unimplemented
+	case ErrBadGateway:
+		return codes.Aborted
+	case ErrServiceUnavailable:
+		return codes.Unavailable
+	case ErrGatewayTimeout:
+		return codes.DeadlineExceeded
 	default:
 		return codes.Internal
 	}
 }
 
+type grpcError struct {
+	gc codes.Code
+	hc int
+	m  string
+	t  string
+	s  *status.Status
+}
+
 func (e grpcError) Error() string {
-	return e.e.Error()
+	return e.m
 }
 
 func (e grpcError) GRPCStatus() *status.Status {
 	return e.s
 }
 
-func (e grpcError) As(target interface{}) bool {
-	return stderrors.As(e.e, target)
+func (e grpcError) HTTPCode() int {
+	return e.hc
 }
 
+func (e grpcError) GRPCCode() codes.Code {
+	return e.gc
+}
+
+func (e grpcError) TypeCode() string {
+	return e.t
+}
+
+// Is returns true if any of TypeCoder, HTTPCoder, GRPCCoder are a match between the error and target
 func (e grpcError) Is(target error) bool {
-	return stderrors.Is(e.e, target)
+	if t, ok := target.(GRPCCoder); ok && e.gc == t.GRPCCode() {
+		return true
+	}
+	if t, ok := target.(HTTPCoder); ok && e.hc == t.HTTPCode() {
+		return true
+	}
+	if t, ok := target.(TypeCoder); ok && e.t == t.TypeCode() {
+		return true
+	}
+	return false
+}
+
+// GRPCCode returns the GRPC code for the given error or codes.OK when nil or codes.Unknown otherwise
+func GRPCCode(err error) codes.Code {
+	if err == nil {
+		return codes.OK
+	}
+	var e GRPCCoder
+	if stderrors.As(err, &e) {
+		return e.GRPCCode()
+	}
+	return codes.Unknown
 }
 
 // SendGRPCError ensures that the error being used is sent with the correct code applied
@@ -96,18 +148,47 @@ func SendGRPCError(err error) error {
 		return nil
 	}
 
-	// Already setup with a code
+	// Already setup with a grpcCode
 	if _, ok := status.FromError(err); ok {
 		return err
 	}
 
-	var coder GRPCCoder
-	if stderrors.As(err, &coder) {
-		return status.Error(coder.GRPCCode(), err.Error())
+	grpcCode := ErrUnknown.GRPCCode()
+	httpCode := ErrUnknown.HTTPCode()
+	typeCode := ErrUnknown.TypeCode()
+
+	// Set the grpcCode based on GRPCCoder output; otherwise leave as Unknown
+	var grpcCoder GRPCCoder
+	if stderrors.As(err, &grpcCoder) {
+		grpcCode = grpcCoder.GRPCCode()
 	}
 
-	// Return an unknown error code to help identify improperly coded errors
-	return status.Error(codes.Unknown, err.Error())
+	// short circuit building detailed errors if the code is OK
+	if grpcCode == codes.OK {
+		return status.Error(grpcCode, err.Error())
+	}
+
+	// Set the httpCode based on HTTPCoder output; otherwise leave as Unknown
+	var httpCoder HTTPCoder
+	if stderrors.As(err, &httpCoder) {
+		httpCode = httpCoder.HTTPCode()
+	}
+
+	// Embed the specific error "type"; otherwise leave as "UNKNOWN"
+	var typeCoder TypeCoder
+	if stderrors.As(err, &typeCoder) {
+		typeCode = typeCoder.TypeCode()
+	}
+
+	errInfo := &ErrorType{
+		TypeCode: typeCode,
+		GRPCCode: int64(grpcCode),
+		HTTPCode: int64(httpCode),
+	}
+
+	s, _ := status.New(grpcCode, err.Error()).WithDetails(errInfo)
+
+	return s.Err()
 }
 
 // ReceiveGRPCError recreates the error with the coded Error reapplied
@@ -126,17 +207,37 @@ func ReceiveGRPCError(err error) error {
 	s, ok := status.FromError(err)
 	if !ok {
 		return &grpcError{
-			e: embed(ErrUnknown, err.Error()),
-			s: s,
+			gc: ErrUnknown.GRPCCode(),
+			hc: ErrUnknown.HTTPCode(),
+			m:  err.Error(),
+			t:  ErrUnknown.TypeCode(),
+			s:  s,
+		}
+	}
+
+	grpcCode := s.Code()
+	httpCode := ErrUnknown.HTTPCode()
+	embedType := codeToError(grpcCode).TypeCode()
+
+	for _, detail := range s.Details() {
+		switch d := detail.(type) {
+		case *ErrorType:
+			embedType = d.TypeCode
+			grpcCode = codes.Code(d.GRPCCode)
+			httpCode = int(d.HTTPCode)
 		}
 	}
 
 	return &grpcError{
-		e: embed(codeToError(s.Code()), s.Message()),
-		s: s,
+		gc: grpcCode,
+		hc: httpCode,
+		m:  s.Message(),
+		s:  s,
+		t:  embedType,
 	}
 }
 
+// convert a code to a known Error type;
 func codeToError(code codes.Code) Error {
 	switch code {
 	case codes.OK:
