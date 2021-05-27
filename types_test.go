@@ -14,7 +14,7 @@ func TestError_Values(t *testing.T) {
 		hc int
 		gc codes.Code
 	}{
-		{ErrOK, "OK", 200, codes.OK},
+		{ErrOK, "", 200, codes.OK},
 		{ErrCanceled, "CANCELED", 408, codes.Canceled},
 		{ErrUnknown, "UNKNOWN", 510, codes.Unknown},
 		{ErrInvalidArgument, "INVALID_ARGUMENT", 400, codes.InvalidArgument},

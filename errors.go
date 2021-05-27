@@ -15,10 +15,16 @@ type Error string
 
 // Error implements error
 func (e Error) Error() string {
+	if e == ErrOK {
+		return ""
+	}
 	return string(e)
 }
 
 func (e Error) TypeCode() string {
+	if e == ErrOK {
+		return ""
+	}
 	return string(e)
 }
 
@@ -66,14 +72,14 @@ func Wrapf(err error, format string, args ...interface{}) error {
 // TypeCode returns the embedded type for the given error or blank when nil or UNKNOWN otherwise
 func TypeCode(err error) string {
 	if err == nil {
-		return ""
+		return ErrOK.TypeCode()
 	}
 
 	var e TypeCoder
 	if stderrors.As(err, &e) {
 		return e.TypeCode()
 	}
-	return "UNKNOWN"
+	return ErrUnknown.TypeCode()
 }
 
 // Go 1.13 convenience
