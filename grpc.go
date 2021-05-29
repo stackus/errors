@@ -130,13 +130,13 @@ func (e grpcError) Is(target error) bool {
 // GRPCCode returns the GRPC code for the given error or codes.OK when nil or codes.Unknown otherwise
 func GRPCCode(err error) codes.Code {
 	if err == nil {
-		return codes.OK
+		return ErrOK.GRPCCode()
 	}
 	var e GRPCCoder
 	if stderrors.As(err, &e) {
 		return e.GRPCCode()
 	}
-	return codes.Unknown
+	return ErrUnknown.GRPCCode()
 }
 
 // SendGRPCError ensures that the error being used is sent with the correct code applied

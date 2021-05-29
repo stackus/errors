@@ -86,12 +86,12 @@ func (e Error) HTTPCode() int {
 // HTTPCode returns the HTTP status for the given error or http.StatusOK when nil or http.StatusNotExtended otherwise
 func HTTPCode(err error) int {
 	if err == nil {
-		return http.StatusOK
+		return ErrOK.HTTPCode()
 	}
 
 	var e HTTPCoder
 	if stderrors.As(err, &e) {
 		return e.HTTPCode()
 	}
-	return http.StatusNotExtended
+	return ErrUnknown.HTTPCode()
 }
