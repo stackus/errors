@@ -86,7 +86,7 @@ func (e Error) GRPCCode() codes.Code {
 }
 
 func (e Error) GRPCStatus() *status.Status {
-	return status.New(e.GRPCCode(), e.Error())
+	return errToStatus(e)
 }
 
 type grpcError struct {
@@ -157,40 +157,7 @@ func SendGRPCError(err error) error {
 		return err
 	}
 
-	grpcCode := ErrUnknown.GRPCCode()
-	httpCode := ErrUnknown.HTTPCode()
-	typeCode := ErrUnknown.TypeCode()
-
-	// Set the grpcCode based on GRPCCoder output; otherwise leave as Unknown
-	var grpcCoder GRPCCoder
-	if stderrors.As(err, &grpcCoder) {
-		grpcCode = grpcCoder.GRPCCode()
-	}
-
-	// short circuit building detailed errors if the code is OK
-	if grpcCode == codes.OK {
-		return status.Error(grpcCode, err.Error())
-	}
-
-	// Set the httpCode based on HTTPCoder output; otherwise leave as Unknown
-	var httpCoder HTTPCoder
-	if stderrors.As(err, &httpCoder) {
-		httpCode = httpCoder.HTTPCode()
-	}
-
-	// Embed the specific error "type"; otherwise leave as "UNKNOWN"
-	var typeCoder TypeCoder
-	if stderrors.As(err, &typeCoder) {
-		typeCode = typeCoder.TypeCode()
-	}
-
-	errInfo := &ErrorType{
-		TypeCode: typeCode,
-		GRPCCode: int64(grpcCode),
-		HTTPCode: int64(httpCode),
-	}
-
-	s, _ := status.New(grpcCode, err.Error()).WithDetails(errInfo)
+	s := errToStatus(err)
 
 	return s.Err()
 }
@@ -281,4 +248,44 @@ func codeToError(code codes.Code) Error {
 	default:
 		return ErrInternal
 	}
+}
+
+// convert an error into a gRPC *status.Status
+func errToStatus(err error) *status.Status {
+	grpcCode := ErrUnknown.GRPCCode()
+	httpCode := ErrUnknown.HTTPCode()
+	typeCode := ErrUnknown.TypeCode()
+
+	// Set the grpcCode based on GRPCCoder output; otherwise leave as Unknown
+	var grpcCoder GRPCCoder
+	if stderrors.As(err, &grpcCoder) {
+		grpcCode = grpcCoder.GRPCCode()
+	}
+
+	// short circuit building detailed errors if the code is OK
+	if grpcCode == codes.OK {
+		return status.New(codes.OK, "")
+	}
+
+	// Set the httpCode based on HTTPCoder output; otherwise leave as Unknown
+	var httpCoder HTTPCoder
+	if stderrors.As(err, &httpCoder) {
+		httpCode = httpCoder.HTTPCode()
+	}
+
+	// Embed the specific error "type"; otherwise leave as "UNKNOWN"
+	var typeCoder TypeCoder
+	if stderrors.As(err, &typeCoder) {
+		typeCode = typeCoder.TypeCode()
+	}
+
+	errInfo := &ErrorType{
+		TypeCode: typeCode,
+		GRPCCode: int64(grpcCode),
+		HTTPCode: int64(httpCode),
+	}
+
+	s, _ := status.New(grpcCode, err.Error()).WithDetails(errInfo)
+
+	return s
 }
