@@ -85,6 +85,10 @@ func (e Error) GRPCCode() codes.Code {
 	}
 }
 
+func (e Error) GRPCStatus() *status.Status {
+	return status.New(e.GRPCCode(), e.Error())
+}
+
 type grpcError struct {
 	gc codes.Code
 	hc int
