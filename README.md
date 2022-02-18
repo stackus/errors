@@ -57,21 +57,39 @@ The `errors.Wrap(error, string) error` function is used to wrap errors combining
 the function is used with an error that has implemented `errors.TypeCoder` the message is not altered, and the error is
 embedded instead.
 
-    // Wrapping normal errors appends the error message
-    err := errors.Wrap(fmt.Errorf("sql error"), "error message")
-    fmt.Println(err) // Outputs: "error message: sql error"
+```go
+// Wrapping normal errors appends the error message
+err := errors.Wrap(fmt.Errorf("sql error"), "error message")
+fmt.Println(err) // Outputs: "error message: sql error"
 
-    // Wrapping errors.TypeCoder errors embeds the type
-    err := errors.Wrap(errors.ErrNotFound, "error message")
-    fmt.Println(err) // Outputs: "error message"
+// Wrapping errors.TypeCoder errors embeds the type
+err := errors.Wrap(errors.ErrNotFound, "error message")
+fmt.Println(err) // Outputs: "error message"
+
+```
 
 Wrapping multiple times will add additional prefixes to the error message.
 
-    // Wrapping multiple times
-    err := errors.Wrap(errors.ErrNotFound, "error message")
-    err = errors.Wrap(err, "prefix")
-    err = errors.Wrap(err, "another")
-    fmt.Println(err) // Outputs: "another: prefix: error message"
+```go
+// Wrapping multiple times
+err := errors.Wrap(errors.ErrNotFound, "error message")
+err = errors.Wrap(err, "prefix")
+err = errors.Wrap(err, "another")
+fmt.Println(err) // Outputs: "another: prefix: error message"
+```
+
+### Wrapping using the errors.Err* errors
+
+It is possible to use the package errors to wrap existing errors to add or override Type, HTTP code, or GRPC status codes.
+
+```go
+// Err will use the wrapped error .Error() output as the message
+err := errors.ErrBadRequest.Err(fmt.Errorf("some error"))
+// Wrap and Wrapf will accept messages and simple wrap the error
+err = errors.ErrUnauthorized.Wrap(err, "some message")
+```
+
+Both errors can be checked for using the `Is()` and `As()` methods when you wrap errors with the package errors this way.
 
 ## Getting type, HTTP status, or GRPC code
 
