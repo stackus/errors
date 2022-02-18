@@ -89,6 +89,10 @@ func (e Error) GRPCStatus() *status.Status {
 	return errToStatus(e)
 }
 
+func (e embeddedError) GRPCStatus() *status.Status {
+	return errToStatus(e)
+}
+
 type grpcError struct {
 	gc codes.Code
 	hc int
