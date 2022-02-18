@@ -20,3 +20,11 @@ Feature: Wrapping errors
     Then the GRPC code is "Internal"
     Then the HTTP status is "Not Found"
     Then the Type code is "VERY CUSTOM"
+
+  Scenario: error information can be overridden
+    Given the error is "ErrBadRequest"
+    When wrapped with the error "ErrForbidden" and message "some error"
+    Then the HTTP status is "Forbidden"
+    And the error message is "some error"
+    And the error is a "ErrBadRequest"
+    And the error is a "ErrForbidden"

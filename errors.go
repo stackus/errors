@@ -28,9 +28,37 @@ func (e Error) TypeCode() string {
 	return string(e)
 }
 
+// Err overrides or adds Type,HTTP,GRPC information for the passed in error
+// while leaving Is() and As() functionality unchanged
+func (e Error) Err(err error) error {
+	if err == nil {
+		return nil
+	}
+	return embeddedError{te: e, e: err, msg: err.Error()}
+}
+
+// Wrap an error with message while overriding or adding Type,HTTP,GRPC information
+// while leaving Is() and As() functionality unchanged
+func (e Error) Wrap(err error, msg string) error {
+	if err == nil {
+		return nil
+	}
+	return embeddedError{te: e, e: err, msg: msg}
+}
+
+// Wrapf an error with message while overriding or adding Type,HTTP,GRPC information
+// while leaving Is() and As() functionality unchanged
+func (e Error) Wrapf(err error, format string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	return embeddedError{te: e, e: err, msg: fmt.Sprintf(format, args...)}
+}
+
 type embeddedError struct {
-	e   error
-	msg string
+	e   error  // original error to be embedded
+	te  error  // overriding error type
+	msg string // for the humans
 }
 
 func (e embeddedError) Error() string {
@@ -38,10 +66,16 @@ func (e embeddedError) Error() string {
 }
 
 func (e embeddedError) Is(target error) bool {
+	if e.te != nil && stderrors.Is(e.te, target) {
+		return true
+	}
 	return stderrors.Is(e.e, target)
 }
 
 func (e embeddedError) As(target interface{}) bool {
+	if e.te != nil && stderrors.As(e.te, target) {
+		return true
+	}
 	return stderrors.As(e.e, target)
 }
 
@@ -52,9 +86,13 @@ func Wrap(err error, msg string) error {
 		return nil
 	}
 	if _, ok := err.(TypeCoder); ok {
-		return embeddedError{err, msg}
+		return embeddedError{e: err, msg: msg}
 	}
-	return fmt.Errorf("%s: %w", msg, err)
+	return embeddedError{
+		e:   err,
+		te:  ErrInternalServerError,
+		msg: fmt.Sprintf("%s: %s", msg, err.Error()),
+	}
 }
 
 // Wrapf returns an error with a formatted msg wrapped with the supplied error
@@ -64,9 +102,13 @@ func Wrapf(err error, format string, args ...interface{}) error {
 		return nil
 	}
 	if _, ok := err.(TypeCoder); ok {
-		return embeddedError{err, fmt.Sprintf(format, args...)}
+		return embeddedError{e: err, msg: fmt.Sprintf(format, args...)}
 	}
-	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
+	return embeddedError{
+		e:   err,
+		te:  ErrInternalServerError,
+		msg: fmt.Sprintf("%s: %s", fmt.Sprintf(format, args...), err.Error()),
+	}
 }
 
 // TypeCode returns the embedded type for the given error or blank when nil or UNKNOWN otherwise

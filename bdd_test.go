@@ -324,6 +324,12 @@ func wrappedWithTheMessage(message string) error {
 	return nil
 }
 
+func wrappedWithTheError(errName, message string) error {
+	err := convertErrNameToError(errName)
+	expectedError = err.Wrap(expectedError, message)
+	return nil
+}
+
 func theErrorIsSentOverGRPC() error {
 	grpcErr := SendGRPCError(expectedError)
 	grpcErr = ReceiveGRPCError(grpcErr)
@@ -391,6 +397,7 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^an error with GRPC code "([^"]*)"$`, anErrorWithGRPCCode)
 
 	// When
+	ctx.Step(`^wrapped with the error "([^"]*)" and message "([^"]*)"$`, wrappedWithTheError)
 	ctx.Step(`^wrapped with the message "([^"]*)"$`, wrappedWithTheMessage)
 	ctx.Step(`^the error is sent over GRPC$`, theErrorIsSentOverGRPC)
 
