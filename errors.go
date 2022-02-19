@@ -37,6 +37,11 @@ func (e Error) Err(err error) error {
 	return embeddedError{te: e, e: err, msg: err.Error()}
 }
 
+// Msg sets a custom message for the Err*
+func (e Error) Msg(msg string) error {
+	return embeddedError{e: e, msg: msg}
+}
+
 // Wrap an error with message while overriding or adding Type,HTTP,GRPC information
 // while leaving Is() and As() functionality unchanged
 func (e Error) Wrap(err error, msg string) error {
@@ -65,18 +70,35 @@ func (e embeddedError) Error() string {
 	return e.msg
 }
 
+func (e embeddedError) TypeCode() string {
+	var typeCoder TypeCoder
+	if e.te != nil && stderrors.As(e.te, &typeCoder) {
+		return typeCoder.TypeCode()
+	}
+	if e.e != nil && stderrors.As(e.e, &typeCoder) {
+		return typeCoder.TypeCode()
+	}
+	return ErrUnknown.TypeCode()
+}
+
 func (e embeddedError) Is(target error) bool {
 	if e.te != nil && stderrors.Is(e.te, target) {
 		return true
 	}
-	return stderrors.Is(e.e, target)
+	if e.e != nil && stderrors.Is(e.e, target) {
+		return true
+	}
+	return false
 }
 
 func (e embeddedError) As(target interface{}) bool {
 	if e.te != nil && stderrors.As(e.te, target) {
 		return true
 	}
-	return stderrors.As(e.e, target)
+	if e.e != nil && stderrors.As(e.e, target) {
+		return true
+	}
+	return false
 }
 
 // Wrap returns an error with msg wrapped with the supplied error
@@ -85,13 +107,13 @@ func Wrap(err error, msg string) error {
 	if err == nil {
 		return nil
 	}
-	if _, ok := err.(TypeCoder); ok {
-		return embeddedError{e: err, msg: msg}
-	}
-	return embeddedError{
-		e:   err,
-		te:  ErrInternalServerError,
-		msg: fmt.Sprintf("%s: %s", msg, err.Error()),
+	switch err.(type) {
+	case embeddedError:
+		return embeddedError{e: err, msg: fmt.Sprintf("%s: %s", msg, err.Error())}
+	case TypeCoder:
+		return embeddedError{te: err, msg: msg}
+	default:
+		return embeddedError{e: err, te: ErrInternalServerError, msg: fmt.Sprintf("%s: %s", msg, err.Error())}
 	}
 }
 
@@ -101,13 +123,17 @@ func Wrapf(err error, format string, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
-	if _, ok := err.(TypeCoder); ok {
-		return embeddedError{e: err, msg: fmt.Sprintf(format, args...)}
-	}
-	return embeddedError{
-		e:   err,
-		te:  ErrInternalServerError,
-		msg: fmt.Sprintf("%s: %s", fmt.Sprintf(format, args...), err.Error()),
+	switch err.(type) {
+	case embeddedError:
+		return embeddedError{e: err, msg: fmt.Sprintf("%s: %s", fmt.Sprintf(format, args...), err.Error())}
+	case TypeCoder:
+		return embeddedError{te: err, msg: fmt.Sprintf(format, args...)}
+	default:
+		return embeddedError{
+			e:   err,
+			te:  ErrInternalServerError,
+			msg: fmt.Sprintf("%s: %s", fmt.Sprintf(format, args...), err.Error()),
+		}
 	}
 }
 
