@@ -37,9 +37,14 @@ func (e Error) Err(err error) error {
 	return embeddedError{te: e, e: err, msg: err.Error()}
 }
 
-// Msg sets a custom message for the Err*
+// Msg sets a custom message for the Error
 func (e Error) Msg(msg string) error {
 	return embeddedError{e: e, msg: msg}
+}
+
+// Msgf sets a custom message for formatting for the Error
+func (e Error) Msgf(format string, args ...interface{}) error {
+	return embeddedError{e: e, msg: fmt.Sprintf(format, args...)}
 }
 
 // Wrap an error with message while overriding or adding Type,HTTP,GRPC information
