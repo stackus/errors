@@ -85,6 +85,8 @@ It is possible to use the package errors to wrap existing errors to add or overr
 ```go
 // Err will use the wrapped error .Error() output as the message
 err := errors.ErrBadRequest.Err(fmt.Errorf("some error"))
+// Msg and Msgf returns the Error with just the custom message applied
+err = errors.ErrBadRequest.Msgf("%d total reasons", 7)
 // Wrap and Wrapf will accept messages and simple wrap the error
 err = errors.ErrUnauthorized.Wrap(err, "some message")
 ```
