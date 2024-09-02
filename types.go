@@ -29,6 +29,8 @@ const (
 	ErrMethodNotAllowed           Error = "METHOD_NOT_ALLOWED"            // HTTP: 405 GRPC: codes.Unimplemented
 	ErrRequestTimeout             Error = "REQUEST_TIMEOUT"               // HTTP: 408 GRPC: codes.DeadlineExceeded
 	ErrConflict                   Error = "CONFLICT"                      // HTTP: 409 GRPC: codes.AlreadyExists
+	ErrGone                       Error = "GONE"                          // HTTP: 410 GRPC: codes.NotFound
+	ErrUnsupportedMediaType       Error = "UNSUPPORTED_MEDIA_TYPE"        // HTTP: 415 GRPC: codes.InvalidArgument
 	ErrImATeapot                  Error = "IM_A_TEAPOT"                   // HTTP: 418 GRPC: codes.Unknown
 	ErrUnprocessableEntity        Error = "UNPROCESSABLE_ENTITY"          // HTTP: 422 GRPC: codes.InvalidArgument
 	ErrTooManyRequests            Error = "TOO_MANY_REQUESTS"             // HTTP: 429 GRPC: codes.ResourceExhausted

@@ -8,6 +8,7 @@ import (
 )
 
 type GRPCCoder interface {
+	error
 	GRPCCode() codes.Code
 }
 
@@ -62,6 +63,10 @@ func (e Error) GRPCCode() codes.Code {
 		return codes.DeadlineExceeded
 	case ErrConflict:
 		return codes.AlreadyExists
+	case ErrGone:
+		return codes.NotFound
+	case ErrUnsupportedMediaType:
+		return codes.InvalidArgument
 	case ErrImATeapot:
 		return codes.Unknown
 	case ErrUnprocessableEntity:

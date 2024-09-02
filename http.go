@@ -6,6 +6,7 @@ import (
 )
 
 type HTTPCoder interface {
+	error
 	HTTPCode() int
 }
 
@@ -60,6 +61,10 @@ func (e Error) HTTPCode() int {
 		return http.StatusRequestTimeout
 	case ErrConflict:
 		return http.StatusConflict
+	case ErrGone:
+		return http.StatusGone
+	case ErrUnsupportedMediaType:
+		return http.StatusUnsupportedMediaType
 	case ErrImATeapot:
 		return 418 // teapot support
 	case ErrUnprocessableEntity:

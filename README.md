@@ -24,6 +24,7 @@ that can then be shared between services.
 Type codes are strings that are returned by any error that implements `errors.TypeCoder`.
 
     type TypeCoder interface {
+        error
         TypeCode() string
     }
 
@@ -33,15 +34,17 @@ HTTP statuses are integer values that have defined in the `net/http` package and
 implements `errors.HTTPCoder`.
 
     type HTTPCoder interface {
+        error
         HTTPCode() int
     }
 
-### GRCP Codes
+### GRPC Codes
 
 GRPC codes are `codes.Code` are int64 values defined in the `google.golang.org/grpc/codes` package and are returned by
 any error that implements `errors.GRPCCoder`.
 
     type GRPCCoder interface {
+        error
         GRPCCode() codes.Code
     }
 

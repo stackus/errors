@@ -7,6 +7,7 @@ import (
 
 // TypeCoder interface to extract an errors embeddable type as a string
 type TypeCoder interface {
+	error
 	TypeCode() string
 }
 
