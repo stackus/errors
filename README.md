@@ -12,7 +12,7 @@ Builds on Go 1.13 errors by adding HTTP statuses and GRPC codes to them.
 
 ## Prerequisites
 
-Go 1.13
+Go 1.20 or later is required to use this package.
 
 ## Embeddable codes
 
@@ -112,6 +112,8 @@ error into any of the three "Coder" interfaces documented above.
 The functions `errors.TypeCode(error) string`, `errors.HTTPCode(error) int`, and `errors.GRPCCode(error) codes.Code` can
 be used to fetch specific code. They're more convenient to use than the interfaces directly. The catch is they have
 defined rules for the values they return.
+
+The function `errors.Join(errs ...error) error`, made available in Go 1.20 has been added to this package as an additional convenience.
 
 #### errors.TypeCode(error) string
 

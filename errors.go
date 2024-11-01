@@ -172,3 +172,8 @@ func Is(err, target error) bool {
 func Unwrap(err error) error {
 	return stderrors.Unwrap(err)
 }
+
+// Join implements the standard errors.Join for convenience
+func Join(errs ...error) error {
+	return stderrors.Join(errs...)
+}
