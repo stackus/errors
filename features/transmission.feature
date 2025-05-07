@@ -8,13 +8,13 @@ Feature: Transmission of errors over GRPC
     Then the HTTP status is "OK"
     Then the Type code is ""
 
-  Scenario: standard errors are treated as unknowns
+  Scenario: standard errors are treated as internal server errors
     Given an error with the message "standard error"
     When the error is sent over GRPC
-    Then the GRPC code is "Unknown"
-    Then the HTTP status is "Not Extended"
-    Then the Type code is "UNKNOWN"
-    Then the error message is "standard error"
+    Then the GRPC code is "Internal"
+    Then the HTTP status is "Internal Server Error"
+    Then the Type code is "INTERNAL_SERVER_ERROR"
+    Then the error message is "standard error: test error"
 
   Scenario: GRPC errors do not pick up extra info
     Given an error with GRPC code "codes.PermissionDenied"

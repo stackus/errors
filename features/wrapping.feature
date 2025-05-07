@@ -5,7 +5,7 @@ Feature: Wrapping errors
     Given an error with the message "some error"
     When wrapped with the message "more context"
     When wrapped with the message "even more context"
-    Then the error message is "even more context: more context: some error"
+    Then the error message is "even more context: more context: some error: test error"
 
   Scenario: errors with Type codes are embedded
     Given an error with Type code "CUSTOM"

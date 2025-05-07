@@ -384,7 +384,7 @@ func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 
 func InitializeScenario(ctx *godog.ScenarioContext) {
 	ctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
-		expectedError = ErrUnknown
+		expectedError = stderrors.New("test error")
 		return ctx, nil
 	})
 
