@@ -62,39 +62,41 @@ func TestNewKindValidation(t *testing.T) {
 	}
 	tests := map[string]testCase{
 		"invalid type code": {
-			func() { errors.NewKind("invalid", errors.ErrNotFound, "missing") },
+			func() { _ = errors.NewKind("invalid", errors.ErrNotFound, "missing") },
 			"errors: invalid type code: invalid",
 		},
 		"invalid category": {
-			func() { errors.NewKind("CUSTOM", errors.Error("MISSING"), "missing") },
+			func() { _ = errors.NewKind("CUSTOM", errors.Error("MISSING"), "missing") },
 			"errors: invalid category: MISSING",
 		},
 		"reserved OK type code": {
-			func() { errors.NewKind("OK", errors.ErrNotFound, "missing") },
+			func() { _ = errors.NewKind("OK", errors.ErrNotFound, "missing") },
 			"errors: reserved kind type code: OK",
 		},
 		"reserved type code": {
-			func() { errors.NewKind("NOT_FOUND", errors.ErrNotFound, "missing") },
+			func() { _ = errors.NewKind("NOT_FOUND", errors.ErrNotFound, "missing") },
 			"errors: reserved kind type code: NOT_FOUND",
 		},
 		"empty message": {
-			func() { errors.NewKind("CUSTOM", errors.ErrNotFound, "") },
+			func() { _ = errors.NewKind("CUSTOM", errors.ErrNotFound, "") },
 			"errors: message cannot be empty",
 		},
 		"HTTP code below error range": {
-			func() { errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithHTTPCode(http.StatusFound)) },
+			func() {
+				_ = errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithHTTPCode(http.StatusFound))
+			},
 			"errors: invalid http code: 302",
 		},
 		"HTTP code above error range": {
-			func() { errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithHTTPCode(600)) },
+			func() { _ = errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithHTTPCode(600)) },
 			"errors: invalid http code: 600",
 		},
 		"successful gRPC code": {
-			func() { errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithGRPCCode(codes.OK)) },
+			func() { _ = errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithGRPCCode(codes.OK)) },
 			"errors: invalid grpc code: OK",
 		},
 		"empty public message": {
-			func() { errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithPublicMessage("")) },
+			func() { _ = errors.NewKind("CUSTOM", errors.ErrNotFound, "missing", errors.WithPublicMessage("")) },
 			"errors: public message cannot be empty",
 		},
 	}
@@ -157,7 +159,7 @@ func TestKindNilCause(t *testing.T) {
 	}
 
 	require.PanicsWithValue(t, "errors: kind cannot be nil", func() {
-		errors.WithKind(errors.New("disk failed"), nil)
+		_ = errors.WithKind(errors.New("disk failed"), nil)
 	})
 }
 

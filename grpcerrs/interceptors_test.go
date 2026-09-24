@@ -145,7 +145,7 @@ func Example() {
 		grpc.WithChainUnaryInterceptor(grpcerrs.UnaryClientInterceptor(registry)),
 		grpc.WithChainStreamInterceptor(grpcerrs.StreamClientInterceptor(registry)),
 	)
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	_, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "orders"})
 

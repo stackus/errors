@@ -20,8 +20,6 @@ type (
 	// Its type code, HTTP code, gRPC code, and public message are set when the
 	// kind is created and cannot change.
 	Kind struct {
-		id *struct{ _ byte } // non-zero identity ensures two independent kinds are never equal
-
 		category Error
 		typeCode string
 		httpCode int
