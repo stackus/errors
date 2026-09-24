@@ -33,7 +33,7 @@ type healthServer struct {
 	healthpb.UnimplementedHealthServer
 }
 
-func (healthServer) Check(ctx context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
+func (healthServer) Check(_ context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
 	return nil, ErrServiceMissing.Msgf("no service named %q", req.GetService())
 }
 
