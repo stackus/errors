@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type (
@@ -34,6 +35,13 @@ func resolveClassification(err error) (errorClassification, bool) {
 
 	if c, ok := externalClassification(err); ok {
 		return c, true
+	}
+
+	// a gRPC status error, such as one from status.Error or a client call
+	if e, ok := err.(interface{ GRPCStatus() *status.Status }); ok {
+		if s := e.GRPCStatus(); s != nil {
+			return statusClassification(s, nil), true
+		}
 	}
 
 	// check for single unwrap
@@ -106,7 +114,8 @@ func externalClassification(err error) (errorClassification, bool) {
 		return errorClassification{}, false
 	}
 
-	if c.typeCode == "" {
+	// A non-nil error never reports success.
+	if c.typeCode == "" || c.typeCode == string(ErrOK) {
 		c.typeCode = string(ErrUnknown)
 	}
 

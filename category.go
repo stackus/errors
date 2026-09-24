@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type (
@@ -21,6 +22,10 @@ type (
 		grpcCode codes.Code
 
 		publicMessage string
+
+		// status is the gRPC status the classification was read from, if
+		// any. SendGRPCError keeps its details.
+		status *status.Status
 	}
 )
 

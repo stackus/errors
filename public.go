@@ -10,6 +10,11 @@ type (
 		message string
 	}
 
+	// PublicError is the type code and client message for an error, as
+	// returned by [Public]. It serializes without the error's internal text,
+	// for example as JSON:
+	//
+	//	{"code":"USER_NOT_FOUND","message":"The user could not be found"}
 	PublicError struct {
 		Code    string `json:"code" xml:"code" yaml:"code" msgpack:"code"`
 		Message string `json:"message" xml:"message" yaml:"message" msgpack:"message"`
@@ -24,6 +29,8 @@ func (e publicError) Unwrap() error {
 	return e.cause
 }
 
+// Public returns err's type code and client-facing message. For nil, the code
+// is "OK" and the message is empty.
 func Public(err error) PublicError {
 	return PublicError{
 		Code:    TypeCode(err),
@@ -31,6 +38,12 @@ func Public(err error) PublicError {
 	}
 }
 
+// WrapPublicMessage sets the message that [PublicMessage] returns for err,
+// for cases where one error needs a message its kind or category doesn't
+// provide. err's text, codes, and identity don't change. If err is later
+// wrapped by a category or kind, that outer classification's message is used
+// instead. WrapPublicMessage returns nil for a nil err and panics when
+// message is empty for a non-nil err.
 func WrapPublicMessage(err error, message string) error {
 	if err == nil {
 		return nil
@@ -46,6 +59,15 @@ func WrapPublicMessage(err error, message string) error {
 	}
 }
 
+// PublicMessage returns a message for err that is safe to show clients. It
+// never returns err.Error(). It uses the first of these that applies:
+//
+//  1. A message set with [WrapPublicMessage].
+//  2. The message set with [WithPublicMessage] on err's [Kind].
+//  3. "Internal Server Error" for a 5xx HTTP code or an unclassified error.
+//  4. The HTTP status text for err's code, such as "Not Found".
+//
+// It returns an empty string for nil.
 func PublicMessage(err error) string {
 	if err == nil {
 		return ""

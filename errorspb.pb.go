@@ -21,12 +21,19 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ErrorType carries classification metadata in a gRPC status detail.
+// Receivers check its gRPC code against the actual status and validate known
+// types against local definitions.
 type ErrorType struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TypeCode      string                 `protobuf:"bytes,1,opt,name=TypeCode,proto3" json:"TypeCode,omitempty"`
-	HTTPCode      int64                  `protobuf:"varint,2,opt,name=HTTPCode,proto3" json:"HTTPCode,omitempty"`
-	GRPCCode      int64                  `protobuf:"varint,3,opt,name=GRPCCode,proto3" json:"GRPCCode,omitempty"`
-	Category      string                 `protobuf:"bytes,4,opt,name=Category,proto3" json:"Category,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// TypeCode identifies a built-in category or application kind.
+	TypeCode string `protobuf:"bytes,1,opt,name=TypeCode,proto3" json:"TypeCode,omitempty"`
+	// HTTPCode is the HTTP status associated with TypeCode.
+	HTTPCode int64 `protobuf:"varint,2,opt,name=HTTPCode,proto3" json:"HTTPCode,omitempty"`
+	// GRPCCode is the gRPC code associated with TypeCode.
+	GRPCCode int64 `protobuf:"varint,3,opt,name=GRPCCode,proto3" json:"GRPCCode,omitempty"`
+	// Category is the built-in category associated with the classification.
+	Category      string `protobuf:"bytes,4,opt,name=Category,proto3" json:"Category,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

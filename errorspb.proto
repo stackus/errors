@@ -2,9 +2,16 @@ syntax = "proto3";
 
 package errors;
 
+// ErrorType carries classification metadata in a gRPC status detail.
+// Receivers check its gRPC code against the actual status and validate known
+// types against local definitions.
 message ErrorType {
+  // TypeCode identifies a built-in category or application kind.
   string TypeCode = 1;
+  // HTTPCode is the HTTP status associated with TypeCode.
   int64 HTTPCode = 2;
+  // GRPCCode is the gRPC code associated with TypeCode.
   int64 GRPCCode = 3;
+  // Category is the built-in category associated with the classification.
   string Category = 4;
 }

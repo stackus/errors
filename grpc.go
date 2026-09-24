@@ -1,8 +1,11 @@
 package errors
 
 import (
+	stderrors "errors"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type receivedGRPCError struct {
@@ -49,62 +52,117 @@ func (e *receivedGRPCError) classification() errorClassification {
 	return e.class
 }
 
+// SendGRPCError converts err into a gRPC status error for a server to return.
+// The status code is [GRPCCode](err), and the message is [PublicMessage](err),
+// so internal text never leaves the server. The type code, HTTP code, and
+// category are attached as an [ErrorType] status detail, which
+// [ReceiveGRPCError] reads on the client.
+//
+// Call it on every error a handler returns, usually from a server
+// interceptor such as the ones in the grpcerrs subpackage. It returns nil
+// for a nil err.
+//
+// A gRPC status error in err's chain, whether made with
+// google.golang.org/grpc/status or received from another service, is
+// classified by its code and detail. Unless an outer category or kind
+// reclassifies it, its other status details are sent along too.
 func SendGRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
 
 	class, ok := resolveClassification(err)
-	if !ok {
-		class = unknownClassification()
-	}
-
-	if class.grpcCode == codes.OK {
+	if !ok || class.grpcCode == codes.OK {
 		class = unknownClassification()
 	}
 
 	// Deliberately do not use err.Error() here.
 	message := PublicMessage(err)
 
-	s := status.New(class.grpcCode, message)
-
-	detail := &ErrorType{
+	detail, detailErr := anypb.New(&ErrorType{
 		TypeCode: class.typeCode,
 		HTTPCode: int64(class.httpCode),
 		GRPCCode: int64(class.grpcCode),
 		Category: string(class.category),
+	})
+
+	s := status.New(class.grpcCode, message)
+	if class.status != nil {
+		// Keep the source status's other details.
+		p := class.status.Proto()
+		p.Code = int32(class.grpcCode)
+		p.Message = message
+		s = status.FromProto(p)
 	}
 
-	withDetails, detailErr := s.WithDetails(detail)
 	if detailErr == nil {
-		s = withDetails
+		s = withErrorTypeDetail(s, detail)
 	}
 
 	return s.Err()
 }
 
+// ReceiveGRPCError rebuilds a classified error from a gRPC status error, such
+// as one returned by a client call. Call it on every error a client call
+// returns, usually from a client interceptor such as the ones in the
+// grpcerrs subpackage.
+//
+// The result is classified from the status code and the [ErrorType] detail
+// that [SendGRPCError] attaches:
+//
+//   - A built-in category, such as ErrBadRequest, is restored as sent, with
+//     the same codes and a match with [Is].
+//   - A [Kind] found in one of the registries is restored as sent. The result
+//     matches the Kind and its category, and has the local Kind's codes.
+//     Registries are searched in order, and the first match is used.
+//   - A Kind that isn't registered keeps its type code, category, and HTTP
+//     code. The result matches the category, but not any Kind.
+//
+// [PublicMessage] of the result is the message the sender sent. The status
+// code decides the result. When a detail disagrees with it, the detail is
+// ignored. A status without a detail, for example from a server that does
+// not use this package, is classified by its status code alone, and its
+// message is not treated as public.
+//
+// The result's Error text is the status error's text, and its GRPCStatus
+// method returns the received status, details included.
+//
+// It returns nil for nil and returns an error that isn't a gRPC status
+// unchanged.
 func ReceiveGRPCError(err error, registries ...*Registry) error {
 	if err == nil {
 		return nil
 	}
 
-	s, ok := status.FromError(err)
-	if !ok {
+	// status.FromError would rewrite the message of a wrapped status, so
+	// find the status error itself.
+	var gs interface{ GRPCStatus() *status.Status }
+	if !stderrors.As(err, &gs) || gs.GRPCStatus() == nil {
 		// An ordinary Go error is not a received gRPC status.
 		return err
 	}
 
+	s := gs.GRPCStatus()
+
+	return &receivedGRPCError{
+		original: err,
+		status:   s,
+		class:    statusClassification(s, registries),
+	}
+}
+
+// statusClassification classifies a gRPC status from its code and its first
+// valid ErrorType detail.
+func statusClassification(s *status.Status, registries []*Registry) errorClassification {
 	actualCode := s.Code()
+	if actualCode == codes.OK {
+		actualCode = codes.Unknown
+	}
 
 	class := categoryClassification(categoryFromGRPCCode(actualCode))
 
 	// The actual gRPC status is authoritative.
 	class.grpcCode = actualCode
-
-	var registry *Registry
-	if len(registries) != 0 {
-		registry = registries[0]
-	}
 
 	for _, detail := range s.Details() {
 		info, ok := detail.(*ErrorType)
@@ -112,22 +170,33 @@ func ReceiveGRPCError(err error, registries ...*Registry) error {
 			continue
 		}
 
-		class = decodeGRPCClassification(
-			info,
-			actualCode,
-			registry,
-			class,
-		)
-
-		// Use the first valid classification detail.
-		break
+		if decoded, ok := decodeGRPCClassification(info, actualCode, registries, class); ok {
+			// The sender used PublicMessage as the status message.
+			decoded.publicMessage = s.Message()
+			class = decoded
+			break
+		}
 	}
 
-	return &receivedGRPCError{
-		original: err,
-		status:   s,
-		class:    class,
+	class.status = s
+
+	return class
+}
+
+// withErrorTypeDetail returns s with detail replacing any ErrorType details.
+func withErrorTypeDetail(s *status.Status, detail *anypb.Any) *status.Status {
+	p := s.Proto()
+
+	details := make([]*anypb.Any, 0, len(p.Details)+1)
+	for _, d := range p.Details {
+		if !d.MessageIs((*ErrorType)(nil)) {
+			details = append(details, d)
+		}
 	}
+
+	p.Details = append(details, detail)
+
+	return status.FromProto(p)
 }
 
 func categoryFromGRPCCode(code codes.Code) Error {
@@ -169,43 +238,28 @@ func categoryFromGRPCCode(code codes.Code) Error {
 	}
 }
 
-func decodeGRPCClassification(info *ErrorType, actualCode codes.Code, registry *Registry, fallback errorClassification) errorClassification {
-	if info == nil {
-		return fallback
-	}
-
+func decodeGRPCClassification(info *ErrorType, actualCode codes.Code, registries []*Registry, fallback errorClassification) (errorClassification, bool) {
 	code := info.GetTypeCode()
-	if !typeCodeRe.MatchString(code) {
-		return fallback
-	}
-
-	if len(code) > 128 {
-		return fallback
+	if len(code) > 128 || !typeCodeRe.MatchString(code) || code == string(ErrOK) {
+		return fallback, false
 	}
 
 	// The metadata must not contradict the actual status.
 	if info.GetGRPCCode() != int64(actualCode) {
-		return fallback
+		return fallback, false
 	}
 
-	// A registered application kind establishes exact identity.
-	if kind, ok := registry.Lookup(code); ok {
+	sentCategory, sentCategoryOK := categoryByCode(info.GetCategory())
+
+	// A registered application kind establishes exact identity. The local
+	// definition decides the HTTP code.
+	if kind, ok := lookupKind(registries, code); ok {
 		class := kind.classification()
 
-		if class.grpcCode != actualCode {
-			return fallback
+		if class.grpcCode == actualCode &&
+			(info.GetCategory() == "" || info.GetCategory() == string(class.category)) {
+			return class, true
 		}
-
-		if int64(class.httpCode) != info.GetHTTPCode() {
-			return fallback
-		}
-
-		if info.GetCategory() != "" &&
-			info.GetCategory() != string(class.category) {
-			return fallback
-		}
-
-		return class
 	}
 
 	// Recognize built-in category codes independently
@@ -213,218 +267,38 @@ func decodeGRPCClassification(info *ErrorType, actualCode codes.Code, registry *
 	if builtin, ok := categoryByCode(code); ok {
 		class := categoryClassification(builtin)
 
-		if class.grpcCode != actualCode {
-			return fallback
+		if class.grpcCode != actualCode ||
+			int64(class.httpCode) != info.GetHTTPCode() {
+			return fallback, false
 		}
 
-		if int64(class.httpCode) != info.GetHTTPCode() {
-			return fallback
-		}
-
-		return class
+		return class, true
 	}
 
-	// Unknown application-specific codes are preserved as
-	// diagnostic metadata, but they do not establish a known
-	// local error identity.
-	fallback.typeCode = code
+	// Other application-specific codes keep the sender's type code,
+	// category, and HTTP code, but they do not establish a known local
+	// error identity.
+	class := fallback
+	class.typeCode = code
 
-	return fallback
+	if sentCategoryOK {
+		class.category = sentCategory
+		class.httpCode = sentCategory.HTTPCode()
+	}
+
+	if httpCode := info.GetHTTPCode(); httpCode >= 400 && httpCode <= 599 {
+		class.httpCode = int(httpCode)
+	}
+
+	return class, true
 }
 
-//func (e Error) GRPCStatus() *status.Status {
-//	return errToStatus(e)
-//}
-//
-//func (e *wrappedError) GRPCStatus() *status.Status {
-//	return errToStatus(e)
-//}
+func lookupKind(registries []*Registry, code string) (*Kind, bool) {
+	for _, registry := range registries {
+		if kind, ok := registry.Lookup(code); ok {
+			return kind, true
+		}
+	}
 
-//type grpcError struct {
-//	gc codes.Code
-//	hc int
-//	m  string
-//	t  string
-//	s  *status.Status
-//}
-//
-//func (e grpcError) Error() string {
-//	return e.m
-//}
-//
-//func (e grpcError) GRPCStatus() *status.Status {
-//	return e.s
-//}
-//
-//func (e grpcError) HTTPCode() int {
-//	return e.hc
-//}
-//
-//func (e grpcError) GRPCCode() codes.Code {
-//	return e.gc
-//}
-//
-//func (e grpcError) TypeCode() string {
-//	return e.t
-//}
-//
-//// Is returns true if any of TypeCoder, HTTPCoder, GRPCCoder are a match between the error and target
-//func (e grpcError) Is(target error) bool {
-//	if t, ok := target.(GRPCCoder); ok && e.gc == t.GRPCCode() {
-//		return true
-//	}
-//	if t, ok := target.(HTTPCoder); ok && e.hc == t.HTTPCode() {
-//		return true
-//	}
-//	if t, ok := target.(TypeCoder); ok && e.t == t.TypeCode() {
-//		return true
-//	}
-//	return false
-//}
-
-// SendGRPCError ensures that the error being used is sent with the correct code applied
-//
-// Use in the server when sending errors.
-// If err is nil then SendGRPCError returns nil.
-//func SendGRPCError(err error) error {
-//	if err == nil {
-//		return nil
-//	}
-//
-//	// Already setup with a grpcCode
-//	if _, ok := status.FromError(err); ok {
-//		return err
-//	}
-//
-//	s := errToStatus(err)
-//
-//	return s.Err()
-//}
-
-// ReceiveGRPCError recreates the error with the coded Error reapplied
-//
-// Non-nil results can be used as both Error and *status.Status. Methods
-// errors.Is()/errors.As(), and status.Convert()/status.FromError() will
-// continue to work.
-//
-// Use in the clients when receiving errors.
-// If err is nil then ReceiveGRPCError returns nil.
-//func ReceiveGRPCError(err error) error {
-//	if err == nil {
-//		return nil
-//	}
-//
-//	s, ok := status.FromError(err)
-//	if !ok {
-//		return &grpcError{
-//			gc: ErrUnknown.GRPCCode(),
-//			hc: ErrUnknown.HTTPCode(),
-//			m:  err.Error(),
-//			t:  ErrUnknown.TypeCode(),
-//			s:  s,
-//		}
-//	}
-//
-//	grpcCode := s.Code()
-//	httpCode := ErrUnknown.HTTPCode()
-//	embedType := codeToError(grpcCode).TypeCode()
-//
-//	for _, detail := range s.Details() {
-//		switch d := detail.(type) {
-//		case *ErrorType:
-//			embedType = d.TypeCode
-//			grpcCode = codes.Code(d.GRPCCode)
-//			httpCode = int(d.HTTPCode)
-//		}
-//	}
-//
-//	return &grpcError{
-//		gc: grpcCode,
-//		hc: httpCode,
-//		m:  s.Message(),
-//		s:  s,
-//		t:  embedType,
-//	}
-//}
-
-//// convert a code to a known Error type;
-//func codeToError(code codes.Code) Error {
-//	switch code {
-//	case codes.OK:
-//		return ErrOK
-//	case codes.Canceled:
-//		return ErrCanceled
-//	case codes.Unknown:
-//		return ErrUnknown
-//	case codes.InvalidArgument:
-//		return ErrInvalidArgument
-//	case codes.DeadlineExceeded:
-//		return ErrDeadlineExceeded
-//	case codes.NotFound:
-//		return ErrNotFound
-//	case codes.AlreadyExists:
-//		return ErrAlreadyExists
-//	case codes.PermissionDenied:
-//		return ErrPermissionDenied
-//	case codes.ResourceExhausted:
-//		return ErrResourceExhausted
-//	case codes.FailedPrecondition:
-//		return ErrFailedPrecondition
-//	case codes.Aborted:
-//		return ErrAborted
-//	case codes.OutOfRange:
-//		return ErrOutOfRange
-//	case codes.Unimplemented:
-//		return ErrUnimplemented
-//	case codes.Internal:
-//		return ErrInternal
-//	case codes.Unavailable:
-//		return ErrUnavailable
-//	case codes.DataLoss:
-//		return ErrDataLoss
-//	case codes.Unauthenticated:
-//		return ErrUnauthenticated
-//	default:
-//		return ErrInternal
-//	}
-//}
-//
-//// convert an error into a gRPC *status.Status
-//func errToStatus(err error) *status.Status {
-//	grpcCode := ErrUnknown.GRPCCode()
-//	httpCode := ErrUnknown.HTTPCode()
-//	typeCode := ErrUnknown.TypeCode()
-//
-//	// Set the grpcCode based on GRPCCoder output; otherwise leave as Unknown
-//	var grpcCoder GRPCCoder
-//	if stderrors.As(err, &grpcCoder) {
-//		grpcCode = grpcCoder.GRPCCode()
-//	}
-//
-//	// short circuit building detailed errors if the code is OK
-//	if grpcCode == codes.OK {
-//		return status.New(codes.OK, "")
-//	}
-//
-//	// Set the httpCode based on HTTPCoder output; otherwise leave as Unknown
-//	var httpCoder HTTPCoder
-//	if stderrors.As(err, &httpCoder) {
-//		httpCode = httpCoder.HTTPCode()
-//	}
-//
-//	// Embed the specific error "type"; otherwise leave as "UNKNOWN"
-//	var typeCoder TypeCoder
-//	if stderrors.As(err, &typeCoder) {
-//		typeCode = typeCoder.TypeCode()
-//	}
-//
-//	errInfo := &ErrorType{
-//		TypeCode: typeCode,
-//		GRPCCode: int64(grpcCode),
-//		HTTPCode: int64(httpCode),
-//	}
-//
-//	s, _ := status.New(grpcCode, err.Error()).WithDetails(errInfo)
-//
-//	return s
-//}
+	return nil, false
+}
