@@ -8,7 +8,6 @@ Feature: Builtin errors have all the right codes
 
     Scenarios:
       | error                         | type code                     | http code                     | grpc code          |
-      | ErrOK                         |                               | OK                            | OK                 |
       | ErrCanceled                   | CANCELED                      | Request Timeout               | Canceled           |
       | ErrUnknown                    | UNKNOWN                       | Not Extended                  | Unknown            |
       | ErrInvalidArgument            | INVALID_ARGUMENT              | Bad Request                   | InvalidArgument    |

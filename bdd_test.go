@@ -1,4 +1,4 @@
-package errors
+package errors_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cucumber/godog"
+	"github.com/stackus/errors"
 	"google.golang.org/grpc/codes"
 )
 
@@ -17,10 +18,10 @@ type typeTestError struct {
 	e error
 }
 
-func (e typeTestError) Error() string              { return e.t }
-func (e typeTestError) TypeCode() string           { return e.t }
-func (e typeTestError) Is(err error) bool          { return stderrors.Is(e.e, err) }
-func (e typeTestError) As(target interface{}) bool { return stderrors.As(e.e, target) }
+func (e typeTestError) Error() string      { return e.t }
+func (e typeTestError) TypeCode() string   { return e.t }
+func (e typeTestError) Is(err error) bool  { return stderrors.Is(e.e, err) }
+func (e typeTestError) As(target any) bool { return stderrors.As(e.e, target) }
 
 type httpTestError struct {
 	hc int
@@ -172,74 +173,74 @@ func convertHTTPStringToInt(httpStatus string) int {
 	}
 }
 
-func convertErrNameToError(errName string) Error {
+func convertErrNameToError(errName string) errors.Error {
 	switch errName {
 	case "ErrOK":
-		return ErrOK
+		return errors.ErrOK
 	case "ErrCanceled":
-		return ErrCanceled
+		return errors.ErrCanceled
 	case "ErrUnknown":
-		return ErrUnknown
+		return errors.ErrUnknown
 	case "ErrInvalidArgument":
-		return ErrInvalidArgument
+		return errors.ErrInvalidArgument
 	case "ErrDeadlineExceeded":
-		return ErrDeadlineExceeded
+		return errors.ErrDeadlineExceeded
 	case "ErrNotFound":
-		return ErrNotFound
+		return errors.ErrNotFound
 	case "ErrAlreadyExists":
-		return ErrAlreadyExists
+		return errors.ErrAlreadyExists
 	case "ErrPermissionDenied":
-		return ErrPermissionDenied
+		return errors.ErrPermissionDenied
 	case "ErrResourceExhausted":
-		return ErrResourceExhausted
+		return errors.ErrResourceExhausted
 	case "ErrFailedPrecondition":
-		return ErrFailedPrecondition
+		return errors.ErrFailedPrecondition
 	case "ErrAborted":
-		return ErrAborted
+		return errors.ErrAborted
 	case "ErrOutOfRange":
-		return ErrOutOfRange
+		return errors.ErrOutOfRange
 	case "ErrUnimplemented":
-		return ErrUnimplemented
+		return errors.ErrUnimplemented
 	case "ErrInternal":
-		return ErrInternal
+		return errors.ErrInternal
 	case "ErrUnavailable":
-		return ErrUnavailable
+		return errors.ErrUnavailable
 	case "ErrDataLoss":
-		return ErrDataLoss
+		return errors.ErrDataLoss
 	case "ErrUnauthenticated":
-		return ErrUnauthenticated
+		return errors.ErrUnauthenticated
 	case "ErrBadRequest":
-		return ErrBadRequest
+		return errors.ErrBadRequest
 	case "ErrUnauthorized":
-		return ErrUnauthorized
+		return errors.ErrUnauthorized
 	case "ErrForbidden":
-		return ErrForbidden
+		return errors.ErrForbidden
 	case "ErrMethodNotAllowed":
-		return ErrMethodNotAllowed
+		return errors.ErrMethodNotAllowed
 	case "ErrRequestTimeout":
-		return ErrRequestTimeout
+		return errors.ErrRequestTimeout
 	case "ErrConflict":
-		return ErrConflict
+		return errors.ErrConflict
 	case "ErrImATeapot":
-		return ErrImATeapot
+		return errors.ErrImATeapot
 	case "ErrUnprocessableEntity":
-		return ErrUnprocessableEntity
+		return errors.ErrUnprocessableEntity
 	case "ErrTooManyRequests":
-		return ErrTooManyRequests
+		return errors.ErrTooManyRequests
 	case "ErrUnavailableForLegalReasons":
-		return ErrUnavailableForLegalReasons
+		return errors.ErrUnavailableForLegalReasons
 	case "ErrInternalServerError":
-		return ErrInternalServerError
+		return errors.ErrInternalServerError
 	case "ErrNotImplemented":
-		return ErrNotImplemented
+		return errors.ErrNotImplemented
 	case "ErrBadGateway":
-		return ErrBadGateway
+		return errors.ErrBadGateway
 	case "ErrServiceUnavailable":
-		return ErrServiceUnavailable
+		return errors.ErrServiceUnavailable
 	case "ErrGatewayTimeout":
-		return ErrGatewayTimeout
+		return errors.ErrGatewayTimeout
 	default:
-		return ErrUnknown
+		return errors.ErrUnknown
 	}
 }
 
@@ -294,14 +295,14 @@ func theErrorIsNil() error {
 
 func theErrorSentByAGRPCServerWas(errName string) error {
 	err := convertErrNameToError(errName)
-	grpcErr := SendGRPCError(err)
-	grpcErr = ReceiveGRPCError(grpcErr)
+	grpcErr := errors.SendGRPCError(err)
+	grpcErr = errors.ReceiveGRPCError(grpcErr)
 	expectedError = grpcErr
 	return nil
 }
 
 func anErrorWithTheMessage(message string) error {
-	expectedError = Wrap(expectedError, message)
+	expectedError = errors.Wrap(expectedError, message)
 	return nil
 }
 
@@ -321,19 +322,21 @@ func anErrorWithGRPCCode(grpcCode string) error {
 }
 
 func wrappedWithTheMessage(message string) error {
-	expectedError = Wrap(expectedError, message)
+	expectedError = errors.Wrap(expectedError, message)
 	return nil
 }
 
 func wrappedWithTheError(errName, message string) error {
 	err := convertErrNameToError(errName)
-	expectedError = err.Wrap(expectedError, message)
+	if origerr, ok := expectedError.(errors.Error); ok {
+		expectedError = origerr.Wrap(err, message)
+	}
 	return nil
 }
 
 func theErrorIsSentOverGRPC() error {
-	grpcErr := SendGRPCError(expectedError)
-	grpcErr = ReceiveGRPCError(grpcErr)
+	grpcErr := errors.SendGRPCError(expectedError)
+	grpcErr = errors.ReceiveGRPCError(grpcErr)
 	expectedError = grpcErr
 	return nil
 }
@@ -346,7 +349,7 @@ func theErrorMessageIs(message string) error {
 }
 
 func theHTTPStatusIs(httpStatus string) error {
-	got := http.StatusText(HTTPCode(expectedError))
+	got := http.StatusText(errors.HTTPCode(expectedError))
 	if got != httpStatus {
 		return fmt.Errorf("expected HTTP status to be `%s` but got `%s`", httpStatus, got)
 	}
@@ -354,7 +357,7 @@ func theHTTPStatusIs(httpStatus string) error {
 }
 
 func theTypeCodeIs(typeCode string) error {
-	got := TypeCode(expectedError)
+	got := errors.TypeCode(expectedError)
 	if got != typeCode {
 		return fmt.Errorf("expected type code to be `%s` but got `%s`", typeCode, got)
 	}
@@ -362,7 +365,7 @@ func theTypeCodeIs(typeCode string) error {
 }
 
 func theGRPCCodeIs(grpcCode string) error {
-	got := GRPCCode(expectedError).String()
+	got := errors.GRPCCode(expectedError).String()
 	if got != grpcCode {
 		return fmt.Errorf("expected GRPC code to be `%s` but got `%s`", grpcCode, got)
 	}
@@ -370,7 +373,7 @@ func theGRPCCodeIs(grpcCode string) error {
 }
 
 func theErrorIsA(errName string) error {
-	if !Is(expectedError, convertErrNameToError(errName)) {
+	if !errors.Is(expectedError, convertErrNameToError(errName)) {
 		return fmt.Errorf("expected error to be a `%s`", errName)
 	}
 	return nil
@@ -378,7 +381,7 @@ func theErrorIsA(errName string) error {
 
 func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 	ctx.BeforeSuite(func() {
-		expectedError = ErrUnknown
+		expectedError = errors.ErrUnknown
 	})
 }
 

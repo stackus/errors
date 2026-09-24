@@ -3,158 +3,150 @@ package errors
 import (
 	stderrors "errors"
 	"fmt"
-)
+	"net/http"
 
-// TypeCoder interface to extract an errors embeddable type as a string
-type TypeCoder interface {
-	error
-	TypeCode() string
-}
+	"google.golang.org/grpc/codes"
+)
 
 // Error base error
 type Error string
 
-// Error implements error
+func New(message string) error {
+	return stderrors.New(message)
+}
+
 func (e Error) Error() string {
-	if e == ErrOK {
-		return ""
-	}
 	return string(e)
 }
 
 func (e Error) TypeCode() string {
-	if e == ErrOK {
-		return ""
-	}
 	return string(e)
 }
 
-// Err overrides or adds Type,HTTP,GRPC information for the passed in error
-// while leaving Is() and As() functionality unchanged
-func (e Error) Err(err error) error {
-	if err == nil {
-		return nil
+func (e Error) HTTPCode() int {
+	def, ok := errorCategories[e]
+	if !ok {
+		return http.StatusInternalServerError
 	}
-	return embeddedError{te: e, e: err, msg: err.Error()}
+
+	return def.httpCode
+}
+
+func (e Error) GRPCCode() codes.Code {
+	cat, ok := errorCategories[e]
+	if !ok {
+		return codes.Unknown
+	}
+
+	return cat.grpcCode
 }
 
 // Msg sets a custom message for the Error
 func (e Error) Msg(msg string) error {
-	return embeddedError{e: e, msg: msg}
+	return &wrappedError{
+		category: e,
+		msg:      msg,
+	}
 }
 
 // Msgf sets a custom message for formatting for the Error
-func (e Error) Msgf(format string, args ...interface{}) error {
-	return embeddedError{e: e, msg: fmt.Sprintf(format, args...)}
+func (e Error) Msgf(format string, args ...any) error {
+	return &wrappedError{
+		category: e,
+		msg:      fmt.Sprintf(format, args...),
+	}
 }
 
-// Wrap an error with message while overriding or adding Type,HTTP,GRPC information
-// while leaving Is() and As() functionality unchanged
-func (e Error) Wrap(err error, msg string) error {
-	if err == nil {
+func (e Error) WithCause(cause error) error {
+	if cause == nil {
 		return nil
 	}
-	return embeddedError{te: e, e: err, msg: msg}
+	return &wrappedError{
+		category: e,
+		cause:    cause,
+		msg:      cause.Error(),
+	}
 }
 
-// Wrapf an error with message while overriding or adding Type,HTTP,GRPC information
-// while leaving Is() and As() functionality unchanged
-func (e Error) Wrapf(err error, format string, args ...interface{}) error {
-	if err == nil {
+func (e Error) Wrap(cause error, msg string) error {
+	if cause == nil {
 		return nil
 	}
-	return embeddedError{te: e, e: err, msg: fmt.Sprintf(format, args...)}
+
+	return &wrappedError{
+		category: e,
+		cause:    cause,
+		msg:      contextualMessage(msg, cause),
+	}
 }
 
-type embeddedError struct {
-	e   error  // original error to be embedded
-	te  error  // overriding error type
-	msg string // for the humans
+func (e Error) Wrapf(cause error, format string, args ...any) error {
+	if cause == nil {
+		return nil
+	}
+
+	return e.Wrap(cause, fmt.Sprintf(format, args...))
 }
 
-func (e embeddedError) Error() string {
-	return e.msg
-}
-
-func (e embeddedError) TypeCode() string {
-	var typeCoder TypeCoder
-	if e.te != nil && stderrors.As(e.te, &typeCoder) {
-		return typeCoder.TypeCode()
-	}
-	if e.e != nil && stderrors.As(e.e, &typeCoder) {
-		return typeCoder.TypeCode()
-	}
-	return ErrUnknown.TypeCode()
-}
-
-func (e embeddedError) Is(target error) bool {
-	if e.te != nil && stderrors.Is(e.te, target) {
-		return true
-	}
-	if e.e != nil && stderrors.Is(e.e, target) {
-		return true
-	}
-	return false
-}
-
-func (e embeddedError) As(target interface{}) bool {
-	if e.te != nil && stderrors.As(e.te, target) {
-		return true
-	}
-	if e.e != nil && stderrors.As(e.e, target) {
-		return true
-	}
-	return false
+func (e Error) classification() errorClassification {
+	return categoryClassification(e)
 }
 
 // Wrap returns an error with msg wrapped with the supplied error
+//
 // If err is nil then Wrap returns nil
 func Wrap(err error, msg string) error {
 	if err == nil {
 		return nil
 	}
-	switch err.(type) {
-	case embeddedError:
-		return embeddedError{e: err, msg: fmt.Sprintf("%s: %s", msg, err.Error())}
-	case TypeCoder:
-		return embeddedError{te: err, msg: msg}
-	default:
-		return embeddedError{e: err, te: ErrInternalServerError, msg: fmt.Sprintf("%s: %s", msg, err.Error())}
+
+	if msg == "" {
+		return err
 	}
+
+	if e, ok := err.(Error); ok {
+		return &wrappedError{
+			category: e,
+			cause:    err,
+			msg:      msg,
+		}
+	}
+
+	return fmt.Errorf("%s: %w", msg, err)
 }
 
 // Wrapf returns an error with a formatted msg wrapped with the supplied error
+//
 // If err is nil then Wrapf returns nil
-func Wrapf(err error, format string, args ...interface{}) error {
+func Wrapf(err error, format string, args ...any) error {
 	if err == nil {
 		return nil
 	}
-	switch err.(type) {
-	case embeddedError:
-		return embeddedError{e: err, msg: fmt.Sprintf("%s: %s", fmt.Sprintf(format, args...), err.Error())}
-	case TypeCoder:
-		return embeddedError{te: err, msg: fmt.Sprintf(format, args...)}
-	default:
-		return embeddedError{
-			e:   err,
-			te:  ErrInternalServerError,
-			msg: fmt.Sprintf("%s: %s", fmt.Sprintf(format, args...), err.Error()),
-		}
-	}
+
+	return Wrap(err, fmt.Sprintf(format, args...))
 }
 
-// TypeCode returns the embedded type for the given error or blank when nil or UNKNOWN otherwise
-func TypeCode(err error) string {
-	if err == nil {
-		return ErrOK.TypeCode()
+func contextualMessage(msg string, cause error) string {
+	if cause == nil {
+		return msg
 	}
 
-	var e TypeCoder
-	if stderrors.As(err, &e) {
-		return e.TypeCode()
+	if msg == "" {
+		return cause.Error()
 	}
-	return ErrUnknown.TypeCode()
+
+	return msg + ": " + cause.Error()
 }
+
+// Go 1.26 convenience
+
+func AsType[E error](err error) (E, bool) {
+	return stderrors.AsType[E](err)
+}
+
+// Go 1.21 convenience
+
+var ErrUnsupported = stderrors.ErrUnsupported
 
 // Go 1.13 convenience
 
